@@ -9,17 +9,20 @@ import { PublicKey } from '@solana/web3.js';
 import './App.css';
 import { TOKEN_METADATA_PROGRAM_ID } from '@coral-xyz/xnft';
 import { AnchorProvider } from '@coral-xyz/anchor';
+import { useLocation } from 'react-router-dom';
+
 
 const COLLECTION_MINT = new PublicKey('FREP9swLijQRyFXyrJTP8AB4ucx1iFP5jr4b3N1zRx52')
-const MINT = new PublicKey('HXPnDtKgaERmNPDpMEra2PHRJAJry5d6fQoBHkhB9MDb')
 
 function App() {
   const { triggerGameOver } = useConsoleInterceptor();
   const publicKeys = usePublicKeys();
   const dimensions = useDimensions();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [belowThreshold, setBelowThreshold] = useState(false);
+  const [mint, setMint] = useState<string | null>(null);
 
   const { unityProvider, loadingProgression, isLoaded } = useUnityContext({ 
     loaderUrl: 'build/SharkRun.loader.js',
@@ -51,6 +54,11 @@ function App() {
       
     }
   }, [triggerGameOver]);
+
+  useEffect(() => {
+    console.log('extracting mint...')
+    extractMint();
+  }, [location]);
   
 
   const handleSkip = async () => {
@@ -58,20 +66,22 @@ function App() {
   };
 
   const getMetadataAddress = () => {
+    if (!mint) return;
     return PublicKey.findProgramAddressSync(
       [
         Buffer.from('metadata', 'utf8'),
         TOKEN_METADATA_PROGRAM_ID.toBuffer(),
-        MINT.toBuffer(),
+        new PublicKey(mint).toBuffer(),
       ],
       TOKEN_METADATA_PROGRAM_ID
     )[0];
   };
 
   const upgrade = async () => {
+    if (!mint) return;
     try {
       const provider = new AnchorProvider(window.xnft?.solana.connection, window.xnft?.solana, AnchorProvider.defaultOptions())
-      await AtomicArtUpgradesClient.upgradeMetadata(COLLECTION_MINT, MINT, getMetadataAddress(), provider)
+      await AtomicArtUpgradesClient.upgradeMetadata(COLLECTION_MINT, new PublicKey(mint), getMetadataAddress()!, provider)
     } catch (err) {
       console.log('upgrade error', err);
     }
@@ -80,6 +90,14 @@ function App() {
   const handleResize = () => {
     window.xnft.popout( { fullscreen: true } );
   };
+
+  const extractMint = () => {
+    const url = location.pathname;
+    const parts = url.split('/');
+    const mint = parts[parts.length - 1];
+    console.log('collectible mint', mint);
+    setMint(mint);
+  }
 
   const renderContent = () => {
     if (belowThreshold) {
